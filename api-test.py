@@ -49,12 +49,12 @@ def get_actions():
 					print("Autoaction Name: " + action_name + "\t Status: Inactive")
 					text_actionlist.insert(tk.END, action_name + "\n")
 					text_actionstat.insert(tk.END, "Inactive" +  "\n")
-					
+
 			except Exception as e:
 				print("No Connection or Invalid address")
 				print(e)
 				text_actionlist.insert(tk.END,"No Connection or Invalid address")
-			
+
 			if running == False:
 				break
 
@@ -68,10 +68,10 @@ def get_actions():
 				trig_pd(result)
 				autoactions_stat = temp_dict.copy()
 			time.sleep(5)
-			
+
 	thread = threading.Thread(target=run)
 	thread.start()
-				
+
 #Trigger Pagerduty Event
 def trig_pd(des):
 	data = json.dumps({
@@ -83,19 +83,23 @@ def trig_pd(des):
 			"severity":"warning"
 		}})
 	try:
-		req = Request("https://events.pagerduty.com/v2/enqueue", data, {'Content-Type': 'application/json'})
-		response = urlopen(req).read()
-		print(response)
+		if py3 == True:
+			req = Request("https://events.pagerduty.com/v2/enqueue", data.encode("utf-8"), {'Content-Type': 'application/json'})
+			response = urlopen(req).read().decode("utf-8")
+		else:
+			req = Request("https://events.pagerduty.com/v2/enqueue", data, {'Content-Type': 'application/json'})
+			response = urlopen(req).read()
+		print(response,'response')
 		if json.loads(response)['status'] == 'success':
 			status_pagerduty['text'] = 'success'
 			status_pagerduty['bg'] = 'green'
 			status_pagerduty.place(x=w-100, y=290)
 		else:
-			status_pagerduty['text'] = 'fail'
+			status_pagerduty['text'] = 'failed '
 			status_pagerduty['bg'] = 'red'
 			status_pagerduty.place(x=w-100, y=290)
 	except Exception as e:
-		status_pagerduty['text'] = 'fail'
+		status_pagerduty['text'] = 'failed '
 		status_pagerduty['bg'] = 'red'
 		status_pagerduty.place(x=w-100, y=290)
 
