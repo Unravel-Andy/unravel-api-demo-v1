@@ -22,81 +22,85 @@ def_api_url = 'http://172.16.1.62:3000/api/v1/autoactions/' #default Unravel aut
 
 
 #Get Unravel Server Autoactions
-def get_actions():
-        def run():
-            # global autoactions_stat
-            global autoactions_stat
-            autoactions_stat.clear()
+def run():
+    # global autoactions_stat
+    global autoactions_stat
+    autoactions_stat.clear()
 
-            while running == True:
-                temp_dict = {}
-                #clear previous result
-                text_actionlist.delete("1.0",tk.END)
-                text_actionstat.delete("1.0",tk.END)
-                status_pagerduty.place_forget()
-                request = Request(input_getaction.get())
-                try:
-                    if py3 == True:
-                        response = json.loads(urlopen(request).read().decode('utf-8'))
+    while running == True:
+        temp_dict = {}
+        #clear previous result
+        text_actionlist.delete("1.0",tk.END)
+        text_actionstat.delete("1.0",tk.END)
+        status_pagerduty.place_forget()
+        request = Request(input_getaction.get())
+        try:
+            if py3 == True:
+                response = json.loads(urlopen(request).read().decode('utf-8'))
+            else:
+                response = json.loads(urlopen(request).read())
+        except Exception as e:
+                print("No Connection or Invalid address")
+                print(e)
+                text_actionlist.insert(tk.END,"No Connection or Invalid address")
+                butt_getaction['text'] = 'Start'
+                break
+
+        # Compare v4.2.5 or v4.3
+        try:
+
+            test = len(response['active'])
+        except TypeError as e:  ######### This is for Unravel Server v4.3 #########
+            if isinstance('list indices must be integers, not str',str):
+                for _,val in enumerate(response):
+                    if val['enabled']:
+                        active = 'Active'
                     else:
-                        response = json.loads(urlopen(request).read())
-                except Exception as e:
-                        print("No Connection or Invalid address")
-                        print(e)
-                        text_actionlist.insert(tk.END,"No Connection or Invalid address")
-                        break
+                        active = 'Inactive'
 
-                # Compare v4.2.5 or v4.3
+                    action_name = val['name_by_user']
+                    temp_dict[action_name] = active
+                    text_actionlist.insert(tk.END, action_name + "\n")
+                    text_actionstat.insert(tk.END, active +  "\n")
+                    print("Autoaction Name: " + action_name + "\t Status: " + active)
+
+        else: ######### This is for Unravel Server v4.2.5 #########
+            #Show Active Autoactions
+            for i in range(len(response['active'])):
+                action_name = response['active'][i]['name_by_user']
+                temp_dict[action_name] = 'active'
+                print("Autoaction Name: " + action_name + "\t Status: Active")
+                text_actionlist.insert(tk.END, action_name + "\n")
+                text_actionstat.insert(tk.END, "Active" +  "\n")
+            #Show Inactive Autoactions
+            for i in range(len(response['inactive'])):
                 try:
+                    action_name = response['inactive'][i]['name_by_user']
+                    temp_dict[action_name] = 'inactive'
+                    print("Autoaction Name: " + action_name + "\t Status: Inactive")
+                    text_actionlist.insert(tk.END, action_name + "\n")
+                    text_actionstat.insert(tk.END, "Inactive" +  "\n")
+                except:
+                    pass
 
-                    test = len(response['active'])
-                except TypeError as e:  ######### This is for Unravel Server v4.3 #########
-                    if isinstance('list indices must be integers, not str',str):
-                        for _,val in enumerate(response):
-                            if val['enabled']:
-                                active = 'Active'
-                            else:
-                                active = 'Inactive'
+        if running == False:
+            break
 
-                            action_name = val['name_by_user']
-                            temp_dict[action_name] = active
-                            text_actionlist.insert(tk.END, action_name + "\n")
-                            text_actionstat.insert(tk.END, active +  "\n")
-                            print("Autoaction Name: " + action_name + "\t Status: " + active)
+        if not autoactions_stat:
+            autoactions_stat =  temp_dict.copy()
+        elif temp_dict != autoactions_stat:
+            result = ''
+            for item in temp_dict:
+                if item not in autoactions_stat or temp_dict[item] != autoactions_stat[item]:
+                    result += 'Autoaction:' + item + ' status changed '
+            print('Not Match, Send Notification to Pagerduty')
+            trig_pd(result)
+            autoactions_stat = temp_dict.copy()
+        time.sleep(5)
+def get_actions():
 
-                else: ######### This is for Unravel Server v4.2.5 #########
-                    #Show Active Autoactions
-    				for i in range(len(response['active'])):
-    					action_name = response['active'][i]['name_by_user']
-    					temp_dict[action_name] = 'active'
-    					print("Autoaction Name: " + action_name + "\t Status: Active")
-    					text_actionlist.insert(tk.END, action_name + "\n")
-    					text_actionstat.insert(tk.END, "Active" +  "\n")
-    				#Show Inactive Autoactions
-    				for i in range(len(response['inactive'])):
-    					action_name = response['inactive'][i]['name_by_user']
-    					temp_dict[action_name] = 'inactive'
-    					print("Autoaction Name: " + action_name + "\t Status: Inactive")
-    					text_actionlist.insert(tk.END, action_name + "\n")
-    					text_actionstat.insert(tk.END, "Inactive" +  "\n")
-
-                if running == False:
-    				break
-
-                if not autoactions_stat:
-                    autoactions_stat =  temp_dict.copy()
-                elif temp_dict != autoactions_stat:
-                    result = ''
-                    for item in temp_dict:
-                        if item not in autoactions_stat or temp_dict[item] != autoactions_stat[item]:
-                            result += 'Autoaction:' + item + ' status changed '
-                    print('Not Match, Send Notification to Pagerduty')
-                    trig_pd(result)
-                    autoactions_stat = temp_dict.copy()
-                time.sleep(5)
-
-	thread = threading.Thread(target=run)
-	thread.start()
+    thread = threading.Thread(target=run)
+    thread.start()
 
 #Trigger Pagerduty Event
 def trig_pd(des):
@@ -119,11 +123,10 @@ def trig_pd(des):
 		if json.loads(response)['status'] == 'success':
 			status_pagerduty['text'] = 'success'
 			status_pagerduty['bg'] = 'green'
-			status_pagerduty.place(x=w-100, y=290)
 		else:
 			status_pagerduty['text'] = 'failed '
 			status_pagerduty['bg'] = 'red'
-			status_pagerduty.place(x=w-100, y=290)
+		status_pagerduty.place(x=w-100, y=290)
 	except Exception as e:
 		status_pagerduty['text'] = 'failed '
 		status_pagerduty['bg'] = 'red'
